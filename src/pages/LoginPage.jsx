@@ -6,7 +6,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '@/components/ui/card';
 import { motion } from 'framer-motion';
-import { Eye, EyeOff, LogIn as LogInIcon, ParkingSquare as ParkingSquareIcon } from 'lucide-react';
+import { Eye, EyeOff, LogIn as LogInIcon, AppWindow as AppWindowIcon, Truck, Utensils } from 'lucide-react';
 
 const LoginPage = () => {
   const [username, setUsername] = useState('');
@@ -46,11 +46,17 @@ const LoginPage = () => {
     >
       <Card className="w-full max-w-md shadow-2xl bg-card/80 backdrop-blur-lg">
         <CardHeader className="text-center">
-          <motion.div initial={{ scale: 0 }} animate={{ scale: 1}} transition={{delay: 0.2, duration:0.5}}>
-            <ParkingSquareIcon className="w-20 h-20 mx-auto text-primary mb-4" />
+          <motion.div 
+            initial={{ scale: 0 }} 
+            animate={{ scale: 1}} 
+            transition={{delay: 0.2, duration:0.5}}
+            className="flex justify-center items-center space-x-2 mb-4"
+          >
+            <Truck className="w-12 h-12 text-primary" />
+            <Utensils className="w-12 h-12 text-secondary" />
           </motion.div>
-          <CardTitle>Bienvenido a GlobalPark</CardTitle>
-          <CardDescription>Accede a tu panel de estacionamiento.</CardDescription>
+          <CardTitle>Sistema Gestión San José</CardTitle>
+          <CardDescription>Accede a los módulos de Garaje y Restaurante.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-6">

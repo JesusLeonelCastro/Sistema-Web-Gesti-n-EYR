@@ -4,7 +4,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { motion } from 'framer-motion';
-import { FileSpreadsheet, Search, XCircle, CalendarDays, Eye, Printer, Download, ShoppingCart, User, Clock, CheckCircle, X, AlertTriangle } from 'lucide-react';
+import { FileSpreadsheet, Search, XCircle, CalendarDays, Eye, Printer, Download, ShoppingCart, User, Clock, CheckCircle, X, AlertTriangle, UserCog } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from '@/components/ui/dialog';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { formatDate } from '@/lib/parkingUtils';
@@ -40,6 +40,7 @@ const RestaurantAdminOrdersPage = () => {
         (item.displayId && item.displayId.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.id && item.id.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.customerName && item.customerName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.operatorName && item.operatorName.toLowerCase().includes(searchTerm.toLowerCase())) ||
         item.items.some(dish => dish.name.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
@@ -118,7 +119,7 @@ const RestaurantAdminOrdersPage = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Buscar por ID, cliente, plato..."
+                placeholder="Buscar por ID, cliente, operador, plato..."
                 value={searchTerm}
                 onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}}
                 className="pl-10 bg-muted/50 focus:bg-background w-full"
@@ -155,13 +156,14 @@ const RestaurantAdminOrdersPage = () => {
                   <TableHead className="hidden sm:table-cell"><User className="inline-block mr-1 h-4 w-4" />Cliente</TableHead>
                   <TableHead>Total ({settings.currencySymbol})</TableHead>
                   <TableHead>Estado</TableHead>
+                  <TableHead><UserCog className="inline-block mr-1 h-4 w-4" />Operador</TableHead>
                   <TableHead className="text-right">Acciones</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {paginatedOrders.map((order, index) => (
                   <motion.tr 
-                    key={order.id}
+                    key={order.id + index}
                     initial={{ opacity: 0, y: 10 }}
                     animate={{ opacity: 1, y: 0 }}
                     transition={{ delay: index * 0.05 }}
@@ -174,6 +176,7 @@ const RestaurantAdminOrdersPage = () => {
                     <TableCell>
                         {getStatusBadge(order.status)}
                     </TableCell>
+                    <TableCell className="text-xs text-muted-foreground">{order.operatorName || 'N/A'}</TableCell>
                     <TableCell className="text-right space-x-1">
                       <Button variant="ghost" size="icon" onClick={() => setSelectedOrder(order)} title="Ver Detalles">
                         <Eye className="h-4 w-4 text-blue-500" />
@@ -212,7 +215,8 @@ const RestaurantAdminOrdersPage = () => {
             <DialogHeader>
               <DialogTitle>Detalles del Pedido #{selectedOrder.displayId || selectedOrder.id.substring(0,8)}</DialogTitle>
               <DialogDescription>
-                Cliente: {selectedOrder.customerName || 'N/A'} | Fecha: {formatDate(selectedOrder.orderTime, true)}
+                Cliente: {selectedOrder.customerName || 'N/A'} | Fecha: {formatDate(selectedOrder.orderTime, true)} <br/>
+                Operador: {selectedOrder.operatorName || 'N/A'}
               </DialogDescription>
             </DialogHeader>
             <div className="mt-4 max-h-60 overflow-y-auto">

@@ -1,5 +1,5 @@
 import useLocalStorage from '@/hooks/useLocalStorage';
-import { useEffect } from 'react';
+import { useEffect, useCallback } from 'react';
 
 const getTodayDateString = () => {
   const today = new Date();
@@ -14,53 +14,61 @@ const categoryPrefixes = {
   'Almuerzos': 'ALM',
   'Cena': 'CEN',
   'Especiales': 'ESP',
-  // Other categories will use a generic prefix or none
 };
 
 const useOrderCounter = () => {
   const [dailyCounters, setDailyCounters] = useLocalStorage('restaurant_daily_order_counters', {});
 
+  const resetDailyCounters = useCallback(() => {
+    const todayString = getTodayDateString();
+    const newCountersToday = {};
+    Object.keys(categoryPrefixes).forEach(catKey => {
+      newCountersToday[catKey] = 0;
+    });
+    newCountersToday['generic'] = 0;
+    setDailyCounters({ [todayString]: newCountersToday });
+  }, [setDailyCounters]);
+
   useEffect(() => {
     const todayString = getTodayDateString();
-    if (!dailyCounters[todayString]) {
-      const newCountersToday = {};
-      Object.keys(categoryPrefixes).forEach(catKey => {
-        newCountersToday[catKey] = 0;
-      });
-      newCountersToday['generic'] = 0; // For items not in main meal categories
-      setDailyCounters(prev => ({ ...prev, [todayString]: newCountersToday }));
+    if (!dailyCounters || !dailyCounters[todayString]) {
+      resetDailyCounters();
     }
-  }, [dailyCounters, setDailyCounters]);
+  }, [dailyCounters, resetDailyCounters]);
 
-  const getNextOrderId = (categoryName) => {
+  const getNextOrderId = useCallback((categoryName) => {
     const todayString = getTodayDateString();
     let currentCountersToday = dailyCounters[todayString];
 
     if (!currentCountersToday) {
-      currentCountersToday = {};
+      resetDailyCounters();
+      currentCountersToday = dailyCounters[todayString] || { generic: 0 }; 
       Object.keys(categoryPrefixes).forEach(catKey => {
-        currentCountersToday[catKey] = 0;
+        if(!currentCountersToday[catKey]) currentCountersToday[catKey] = 0;
       });
-      currentCountersToday['generic'] = 0;
     }
     
-    let counterCategory = 'generic';
+    let counterCategoryKey = 'generic';
     if (categoryPrefixes[categoryName]) {
-        counterCategory = categoryName;
+        counterCategoryKey = categoryName;
     }
 
-    const nextCount = (currentCountersToday[counterCategory] || 0) + 1;
-    currentCountersToday[counterCategory] = nextCount;
-    setDailyCounters(prev => ({...prev, [todayString]: currentCountersToday }));
+    const nextCount = (currentCountersToday[counterCategoryKey] || 0) + 1;
+    
+    const updatedCountersForToday = {
+      ...currentCountersToday,
+      [counterCategoryKey]: nextCount,
+    };
+
+    setDailyCounters(prev => ({...prev, [todayString]: updatedCountersForToday }));
 
     const prefix = categoryPrefixes[categoryName] || 'ORD';
     return `${prefix}-${todayString.substring(2)}-${nextCount.toString().padStart(3, '0')}`;
-  };
+  }, [dailyCounters, setDailyCounters, resetDailyCounters]);
   
-  const getDisplayIdForOrder = (items) => {
+  const getDisplayIdForOrder = useCallback((items) => {
     if (!items || items.length === 0) return getNextOrderId('generic');
 
-    // Prioritize main meal categories for the display ID
     const mainMealPriority = ['Desayuno', 'Almuerzos', 'Cena', 'Especiales'];
     let primaryCategory = 'generic';
 
@@ -70,7 +78,6 @@ const useOrderCounter = () => {
             break;
         }
     }
-    // If no main meal category found, use the category of the first item or generic
     if (primaryCategory === 'generic' && items[0]?.category) {
        if (categoryPrefixes[items[0].category]) {
          primaryCategory = items[0].category;
@@ -78,10 +85,10 @@ const useOrderCounter = () => {
     }
     
     return getNextOrderId(primaryCategory);
-  };
+  }, [getNextOrderId]);
 
 
-  return { getDisplayIdForOrder };
+  return { getNextOrderId, getDisplayIdForOrder, resetDailyCounters };
 };
 
 export default useOrderCounter;

@@ -1,13 +1,16 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { useLocation, useNavigate } from 'react-router-dom';
-import useLocalStorage from '@/hooks/useLocalStorage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { useToast } from '@/components/ui/use-toast';
+import useLocalStorage from '@/hooks/useLocalStorage';
+import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
-import { LogOut, Truck, CalendarDays, Clock, DollarSign, AlertTriangle, Info, Search, XCircle, Package, Car } from 'lucide-react';
+import { Truck, Search, XCircle, CalendarMinus, AlertCircle, Info, DollarSign, Clock } from 'lucide-react';
+import { formatDate, calculateStayDuration, getCurrentUTCISOString } from '@/lib/parkingUtils';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -17,158 +20,161 @@ import {
   AlertDialogFooter,
   AlertDialogHeader,
   AlertDialogTitle,
-  AlertDialogTrigger,
+  AlertDialogTrigger, 
 } from "@/components/ui/alert-dialog";
 
-const vehicleTypeIcons = {
-  "Trailer": Truck,
-  "Automovil": Car,
-  "CamionSolo": Truck,
-  "CamionAcoplado": Package,
-  "Default": Truck
-};
-
 const OperatorExitLogPage = () => {
-  const [parkedTrailers, setParkedTrailers] = useLocalStorage('parked_trailers', []);
-  const [trailerHistory, setTrailerHistory] = useLocalStorage('trailer_history', []);
-  const [settings] = useLocalStorage('parking_settings', { dailyRate: 50, totalSpots: 50, currencySymbol: 'Bs.', vehicleTypeRates: {} });
-  
-  const [plate, setPlate] = useState('');
-  const [foundTrailer, setFoundTrailer] = useState(null);
+  const [plateToSearch, setPlateToSearch] = useState('');
+  const [foundVehicle, setFoundVehicle] = useState(null);
   const [calculatedFee, setCalculatedFee] = useState(0);
-  const [stayDuration, setStayDuration] = useState('');
-  const [exitTime, setExitTime] = useState(new Date());
+  const [calculatedDuration, setCalculatedDuration] = useState('');
+  const [notes, setNotes] = useState('');
   const [error, setError] = useState('');
 
+  const { user } = useAuth();
+  const [parkedTrailers, setParkedTrailers] = useLocalStorage('parked_trailers', []);
+  const [trailerHistory, setTrailerHistory] = useLocalStorage('trailer_history', []);
+  const [settings] = useLocalStorage('parking_settings', { dailyRate: 50, currencySymbol: 'Bs.', vehicleTypeRates: {} });
   const { toast } = useToast();
-  const navigate = useNavigate();
   const location = useLocation();
-
-  useEffect(() => {
-    const queryParams = new URLSearchParams(location.search);
-    const plateFromQuery = queryParams.get('plate');
-    if (plateFromQuery) {
-      setPlate(plateFromQuery);
-      handleSearchPlate(plateFromQuery);
-    }
-  }, [location.search, parkedTrailers]);
-
-  useEffect(() => {
-    let timer;
-    if (foundTrailer) {
-      timer = setInterval(() => {
-        setExitTime(new Date());
-        calculateFeeAndDuration(foundTrailer, new Date());
-      }, 60000); // Update every minute
-    }
-    return () => clearInterval(timer);
-  }, [foundTrailer, settings]);
+  const navigate = useNavigate();
 
   const getRateForVehicle = (vehicleType) => {
     const specificRate = settings.vehicleTypeRates?.[vehicleType];
     if (specificRate !== undefined && specificRate !== null && specificRate !== '' && !isNaN(Number(specificRate)) && Number(specificRate) > 0) {
-      return Number(specificRate);
+        return Number(specificRate);
     }
-    return settings.dailyRate; // Fallback to general daily rate
+    return settings.dailyRate;
   };
 
-  const calculateFeeAndDuration = (trailer, currentExitTime) => {
-    if (!trailer || !trailer.entryTime) return;
-    const entry = new Date(trailer.entryTime);
-    const exit = currentExitTime;
-    
+  const calculateFee = (entryTime, exitTime, vehicleType) => {
+    const entry = new Date(entryTime);
+    const exit = new Date(exitTime);
+    if (isNaN(entry.getTime()) || isNaN(exit.getTime())) return 0;
+
     let diffMs = exit - entry;
-    if (diffMs < 0) diffMs = 0; // Prevent negative duration if clock is off
+    if (diffMs < 0) diffMs = 0;
 
-    const diffDaysTotal = diffMs / (1000 * 60 * 60 * 24);
-    const billableDays = Math.ceil(diffDaysTotal); // Any part of a day counts as a full day
-
-    const rate = getRateForVehicle(trailer.vehicleType);
-    const fee = billableDays * rate;
-    setCalculatedFee(fee);
-
-    const displayDays = Math.floor(diffMs / (1000 * 60 * 60 * 24));
-    diffMs -= displayDays * (1000 * 60 * 60 * 24);
-    const displayHours = Math.floor(diffMs / (1000 * 60 * 60));
-    diffMs -= displayHours * (1000 * 60 * 60);
-    const displayMinutes = Math.floor(diffMs / (1000 * 60));
+    const minutes = Math.floor(diffMs / (1000 * 60));
+    const hours = Math.floor(minutes / 60);
+    const days = Math.ceil(hours / 24); 
     
-    let durationStr = "";
-    if (displayDays > 0) durationStr += `${displayDays}d `;
-    if (displayHours > 0 || displayDays > 0) durationStr += `${displayHours}h `;
-    durationStr += `${displayMinutes}m`;
-    setStayDuration(durationStr.trim());
+    const rate = getRateForVehicle(vehicleType);
+    return Math.max(1, days) * rate; 
   };
-
-  const handleSearchPlate = (searchPlate = plate) => {
+  
+  const handleSearch = () => {
     setError('');
-    setFoundTrailer(null);
+    setFoundVehicle(null);
     setCalculatedFee(0);
-    setStayDuration('');
+    setCalculatedDuration('');
 
-    if (!searchPlate.trim()) {
-      setError('Por favor, ingresa una matrícula.');
+    if (!plateToSearch.trim()) {
+      setError("Por favor, ingresa una matrícula para buscar.");
       return;
     }
-    const trailer = parkedTrailers.find(t => t.plate.toLowerCase() === searchPlate.trim().toLowerCase() && t.status === 'parked');
-    if (trailer) {
-      setFoundTrailer(trailer);
-      const currentExit = new Date();
-      setExitTime(currentExit);
-      calculateFeeAndDuration(trailer, currentExit);
+
+    const vehicle = parkedTrailers.find(
+      (v) => v.plate.toUpperCase() === plateToSearch.toUpperCase() && v.status === 'parked'
+    );
+
+    if (vehicle) {
+      setFoundVehicle(vehicle);
+      const now = getCurrentUTCISOString(); // Changed to UTC
+      const fee = calculateFee(vehicle.entryTime, now, vehicle.vehicleType);
+      const duration = calculateStayDuration(vehicle.entryTime, now);
+      setCalculatedFee(fee);
+      setCalculatedDuration(duration);
     } else {
-      setError(`Vehículo con matrícula "${searchPlate}" no encontrado o ya ha salido.`);
+      setError(`Vehículo con matrícula ${plateToSearch.toUpperCase()} no encontrado o ya salió.`);
       toast({
-        title: 'Vehículo no Encontrado',
-        description: `No se encontró ningún vehículo activo con la matrícula ${searchPlate}.`,
+        title: 'Búsqueda Fallida',
+        description: `Vehículo con matrícula ${plateToSearch.toUpperCase()} no encontrado entre los estacionados.`,
         variant: 'destructive',
       });
     }
   };
+  
+  useEffect(() => {
+    const queryParams = new URLSearchParams(location.search);
+    const plateFromQuery = queryParams.get('plate');
+    if (plateFromQuery) {
+      setPlateToSearch(plateFromQuery.toUpperCase());
+      setTimeout(() => { // Ensure state is set before trying to use it
+        const vehicle = parkedTrailers.find(
+          (v) => v.plate.toUpperCase() === plateFromQuery.toUpperCase() && v.status === 'parked'
+        );
+        if (vehicle) {
+          setFoundVehicle(vehicle);
+          const now = getCurrentUTCISOString(); // Changed to UTC
+          const fee = calculateFee(vehicle.entryTime, now, vehicle.vehicleType);
+          const duration = calculateStayDuration(vehicle.entryTime, now);
+          setCalculatedFee(fee);
+          setCalculatedDuration(duration);
+        } else {
+          setError(`Vehículo con matrícula ${plateFromQuery.toUpperCase()} no encontrado o ya salió.`);
+        }
+      }, 100); // Small delay to allow state update
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [location.search]); // Removed parkedTrailers from deps to avoid re-triggering search on every parkedTrailers change
+
 
   const handleRegisterExit = () => {
-    if (!foundTrailer) return;
+    if (!foundVehicle) return;
 
-    const finalExitTime = new Date(); // Use current time for final registration
-    calculateFeeAndDuration(foundTrailer, finalExitTime); // Recalculate with final time
+    const exitTimeISO = getCurrentUTCISOString(); // Changed to UTC
+    const finalFee = calculateFee(foundVehicle.entryTime, exitTimeISO, foundVehicle.vehicleType);
+    const finalDuration = calculateStayDuration(foundVehicle.entryTime, exitTimeISO);
 
-    const updatedTrailer = {
-      ...foundTrailer,
+    const updatedVehicle = {
+      ...foundVehicle,
+      exitTime: exitTimeISO,
       status: 'exited',
-      exitTime: finalExitTime.toISOString(),
-      durationDays: Math.ceil((finalExitTime - new Date(foundTrailer.entryTime)) / (1000 * 60 * 60 * 24)),
-      fee: calculatedFee, // Use the state variable which is updated by calculateFeeAndDuration
-      forcedExit: false,
+      fee: finalFee, // Use calculatedFee if it's already set and reliable
+      calculatedFee: finalFee, // Store the calculated fee at exit
+      durationDays: Math.ceil( (new Date(exitTimeISO) - new Date(foundVehicle.entryTime)) / (1000 * 60 * 60 * 24) ),
+      notes: (foundVehicle.notes || '') + (notes ? ` Salida: ${notes}` : ''),
+      exitOperatorId: user?.id,
+      exitOperatorName: user?.name || user?.username || 'Sistema',
     };
 
-    setParkedTrailers(prev => prev.filter(t => t.id !== foundTrailer.id));
-    setTrailerHistory(prev => [...prev, { ...updatedTrailer, type: 'exit' }]);
+    setParkedTrailers(parkedTrailers.filter(v => v.id !== foundVehicle.id));
+    
+    const historyIndex = trailerHistory.findIndex(item => item.id === foundVehicle.id && item.type === 'entry');
+    if (historyIndex !== -1) {
+        const updatedHistory = [...trailerHistory];
+        updatedHistory[historyIndex] = { ...updatedVehicle, type: 'exit' }; 
+        setTrailerHistory(updatedHistory);
+    } else {
+        setTrailerHistory([...trailerHistory, { ...updatedVehicle, type: 'exit' }]);
+    }
+
 
     toast({
       title: 'Salida Registrada Exitosamente',
-      description: `Vehículo ${foundTrailer.plate} ha salido. Tarifa: ${settings.currencySymbol}${calculatedFee.toFixed(2)}.`,
-      variant: 'default',
+      description: `Vehículo ${foundVehicle.plate} salió. Tarifa: ${settings.currencySymbol} ${finalFee.toFixed(2)}. Duración: ${finalDuration}.`,
     });
-    navigate('/operator/active-trailers');
+
+    setFoundVehicle(null);
+    setPlateToSearch('');
+    setCalculatedFee(0);
+    setCalculatedDuration('');
+    setNotes('');
+    setError('');
+    navigate('/operator/exit-log'); 
   };
-
-  const formatDate = (date) => {
-    return `${date.toLocaleDateString('es-ES')} ${date.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}`;
-  };
-
-  const Icon = foundTrailer ? (vehicleTypeIcons[foundTrailer.vehicleType] || vehicleTypeIcons.Default) : null;
-
+  
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
       transition={{ duration: 0.5 }}
-      className="max-w-2xl mx-auto"
     >
-      <Card className="shadow-xl bg-card/90 backdrop-blur-sm">
+      <Card className="max-w-2xl mx-auto">
         <CardHeader>
           <CardTitle className="text-3xl flex items-center">
-            <LogOut className="w-8 h-8 mr-3 text-primary" />
+            <CalendarMinus className="w-8 h-8 mr-3 text-red-500" />
             Registrar Salida de Vehículo
           </CardTitle>
           <CardDescription className="text-lg">
@@ -176,94 +182,97 @@ const OperatorExitLogPage = () => {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
-          <div className="flex items-end gap-3">
-            <div className="flex-grow">
-              <Label htmlFor="plate" className="text-base">Matrícula del Vehículo</Label>
-              <div className="relative">
-                <Input
-                  id="plate"
-                  type="text"
-                  value={plate}
-                  onChange={(e) => setPlate(e.target.value.toUpperCase())}
-                  placeholder="Ej: ABC-123"
-                  className="text-lg mt-1 pr-10"
-                  onKeyPress={(e) => e.key === 'Enter' && handleSearchPlate()}
-                />
-                {plate && (
-                    <Button variant="ghost" size="icon" onClick={() => {setPlate(''); setFoundTrailer(null); setError('');}} title="Limpiar matrícula" className="absolute right-1 top-1/2 transform -translate-y-1/2 h-8 w-8">
-                        <XCircle className="h-4 w-4 text-muted-foreground hover:text-destructive" />
-                    </Button>
-                )}
-              </div>
+          <div className="flex items-end space-x-2">
+            <div className="flex-grow space-y-1">
+              <Label htmlFor="plateSearch" className="flex items-center"><Truck className="w-4 h-4 mr-2 text-primary"/>Matrícula a Buscar</Label>
+              <Input
+                id="plateSearch"
+                value={plateToSearch}
+                onChange={(e) => setPlateToSearch(e.target.value.toUpperCase())}
+                placeholder="EJ: AB123CD"
+                className={error ? 'border-destructive' : ''}
+              />
             </div>
-            <Button onClick={() => handleSearchPlate()} className="text-base py-3 px-6">
-              <Search className="w-5 h-5 mr-2" /> Buscar
+            <Button onClick={handleSearch} className="bg-gradient-to-r from-primary to-blue-600 hover:opacity-90 transition-opacity">
+              <Search className="w-4 h-4 mr-2" /> Buscar
             </Button>
           </div>
+          {error && <p className="text-sm text-destructive mt-1 flex items-center"><AlertCircle size={14} className="mr-1"/>{error}</p>}
 
-          {error && (
-            <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="p-3 rounded-md bg-destructive/10 text-destructive flex items-center gap-2">
-              <AlertTriangle size={18} /> {error}
-            </motion.div>
-          )}
-
-          {foundTrailer && (
-            <motion.div initial={{ opacity: 0, y: 10 }} animate={{ opacity: 1, y: 0 }} className="space-y-4 pt-4 border-t border-border/50">
-              <h3 className="text-xl font-semibold text-primary flex items-center">
-                {Icon && <Icon className="w-6 h-6 mr-2" />}
-                Detalles del Vehículo Encontrado
-              </h3>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-3 text-sm">
-                <div><strong>Matrícula:</strong> {foundTrailer.plate}</div>
-                <div><strong>País:</strong> {foundTrailer.country}</div>
-                <div><strong>Tipo:</strong> {foundTrailer.vehicleType || 'N/A'}</div>
-                <div><strong>Teléfono Conductor:</strong> {foundTrailer.driverPhone || 'N/A'}</div>
-                <div className="col-span-full"><strong>Descripción:</strong> {foundTrailer.description || 'N/A'}</div>
-                <div>
-                  <CalendarDays className="inline-block mr-1.5 h-4 w-4 text-muted-foreground" />
-                  <strong>Entrada:</strong> {formatDate(new Date(foundTrailer.entryTime))}
+          {foundVehicle && (
+            <motion.div
+              initial={{ opacity: 0, height: 0 }}
+              animate={{ opacity: 1, height: 'auto' }}
+              transition={{ duration: 0.3 }}
+              className="p-4 border rounded-lg bg-muted/30 space-y-4"
+            >
+              <h3 className="text-xl font-semibold text-primary">Vehículo Encontrado</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-sm">
+                <p><strong className="text-muted-foreground">Matrícula:</strong> {foundVehicle.plate}</p>
+                <p><strong className="text-muted-foreground">Tipo:</strong> {foundVehicle.vehicleType}</p>
+                <p><strong className="text-muted-foreground">País:</strong> {foundVehicle.country}</p>
+                <p><strong className="text-muted-foreground">Entrada:</strong> {formatDate(foundVehicle.entryTime)}</p>
+                <p><strong className="text-muted-foreground">Registrado por:</strong> {foundVehicle.entryOperatorName || 'N/A'}</p>
+                {foundVehicle.driverPhone && <p><strong className="text-muted-foreground">Tel. Conductor:</strong> {foundVehicle.driverPhone}</p>}
+                {foundVehicle.description && <p className="col-span-full"><strong className="text-muted-foreground">Descripción:</strong> {foundVehicle.description}</p>}
+              </div>
+              
+              <div className="pt-3 border-t space-y-2">
+                <div className="flex items-center text-lg font-semibold">
+                    <Clock className="w-5 h-5 mr-2 text-green-500"/>
+                    Estadía Estimada: <span className="ml-1 text-green-600">{calculatedDuration || 'Calculando...'}</span>
                 </div>
-                <div>
-                  <Clock className="inline-block mr-1.5 h-4 w-4 text-muted-foreground" />
-                  <strong>Salida Actual:</strong> {formatDate(exitTime)}
-                </div>
-                <div className="col-span-full mt-2">
-                  <Info className="inline-block mr-1.5 h-4 w-4 text-muted-foreground" />
-                  <strong>Tiempo de Estadía:</strong> <span className="font-semibold">{stayDuration}</span>
-                </div>
-                <div className="col-span-full">
-                  <DollarSign className="inline-block mr-1.5 h-4 w-4 text-muted-foreground" />
-                  <strong>Tarifa Calculada:</strong> <span className="font-semibold text-lg text-green-500">{settings.currencySymbol}{calculatedFee.toFixed(2)}</span>
-                   <span className="text-xs text-muted-foreground ml-1">(Tarifa aplicada: {settings.currencySymbol}{getRateForVehicle(foundTrailer.vehicleType)}/día)</span>
+                <div className="flex items-center text-xl font-bold">
+                    <DollarSign className="w-6 h-6 mr-1 text-green-500"/>
+                    Tarifa Estimada a Pagar: 
+                    <span className="ml-2 text-green-600">{settings.currencySymbol} {calculatedFee.toFixed(2)}</span>
                 </div>
               </div>
+
+              <div className="space-y-1">
+                <Label htmlFor="notes" className="flex items-center"><Info className="w-4 h-4 mr-2 text-primary"/>Notas Adicionales (Opcional)</Label>
+                <Textarea id="notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="EJ: Pagó con descuento, observación especial, etc." rows={2}/>
+              </div>
+              
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button className="w-full bg-gradient-to-r from-red-500 to-orange-500 hover:opacity-90 transition-opacity text-base py-3 mt-2">
+                    <CalendarMinus className="w-5 h-5 mr-2" /> Registrar Salida
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Confirmar Salida del Vehículo</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      ¿Estás seguro de registrar la salida del vehículo <strong className="text-primary">{foundVehicle.plate}</strong>?
+                      <br />
+                      Hora de entrada: {formatDate(foundVehicle.entryTime)}.
+                      <br />
+                      Estadía calculada: <strong>{calculatedDuration}</strong>.
+                      <br />
+                      Monto a pagar: <strong className="text-lg">{settings.currencySymbol} {calculatedFee.toFixed(2)}</strong>.
+                      <br />
+                      Esta acción no se puede deshacer fácilmente.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleRegisterExit} className="bg-red-500 hover:bg-red-600">
+                      Sí, Registrar Salida
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+
             </motion.div>
           )}
         </CardContent>
-        <CardFooter>
-          {foundTrailer && (
-             <AlertDialog>
-              <AlertDialogTrigger asChild>
-                <Button className="w-full text-lg py-6" disabled={!foundTrailer}>
-                  <LogOut className="w-5 h-5 mr-2" /> Registrar Salida
+        <CardFooter className="flex justify-end">
+            {foundVehicle && (
+                <Button variant="ghost" onClick={() => { setFoundVehicle(null); setPlateToSearch(''); setError(''); setCalculatedFee(0); setCalculatedDuration(''); navigate('/operator/exit-log'); }} className="text-muted-foreground">
+                <XCircle className="w-4 h-4 mr-2"/> Limpiar
                 </Button>
-              </AlertDialogTrigger>
-              <AlertDialogContent>
-                <AlertDialogHeader>
-                  <AlertDialogTitle>Confirmar Salida</AlertDialogTitle>
-                  <AlertDialogDescription>
-                    ¿Estás seguro de registrar la salida del vehículo <strong className="text-foreground">{foundTrailer?.plate}</strong>?
-                    La tarifa calculada es de <strong className="text-foreground">{settings.currencySymbol}{calculatedFee.toFixed(2)}</strong>.
-                    Esta acción no se puede deshacer.
-                  </AlertDialogDescription>
-                </AlertDialogHeader>
-                <AlertDialogFooter>
-                  <AlertDialogCancel>Cancelar</AlertDialogCancel>
-                  <AlertDialogAction onClick={handleRegisterExit}>Confirmar Salida</AlertDialogAction>
-                </AlertDialogFooter>
-              </AlertDialogContent>
-            </AlertDialog>
-          )}
+            )}
         </CardFooter>
       </Card>
     </motion.div>

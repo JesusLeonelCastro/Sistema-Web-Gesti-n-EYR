@@ -5,7 +5,7 @@ import { motion } from 'framer-motion';
 import { ListChecks, AlertTriangle } from 'lucide-react';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { useToast } from '@/components/ui/use-toast';
-import { formatDate } from '@/lib/parkingUtils';
+import { formatDate, getCurrentUTCISOString } from '@/lib/parkingUtils';
 import { generateOrderTicketPDF } from '@/lib/pdfGenerator';
 import { Button } from '@/components/ui/button';
 import { Printer } from 'lucide-react';
@@ -17,10 +17,10 @@ const RestaurantActiveOrdersPage = () => {
   const [ordersHistory, setOrdersHistory] = useLocalStorage('restaurant_orders_history', []);
   const [settings] = useLocalStorage('restaurant_settings', { currencySymbol: 'Bs.', restaurantName: 'San Jose Restaurante' });
   const { toast } = useToast();
-  const [timeNow, setTimeNow] = useState(Date.now());
+  const [timeNow, setTimeNow] = useState(new Date(getCurrentUTCISOString()).getTime()); // Changed to UTC
 
   useEffect(() => {
-    const timer = setInterval(() => setTimeNow(Date.now()), 60000); // Update time every minute for checking overdue orders
+    const timer = setInterval(() => setTimeNow(new Date(getCurrentUTCISOString()).getTime()), 60000); // Changed to UTC
     return () => clearInterval(timer);
   }, []);
 
@@ -28,17 +28,17 @@ const RestaurantActiveOrdersPage = () => {
     const orderToUpdate = activeOrders.find(order => order.id === orderId);
     if (!orderToUpdate) return;
 
-    const updatedOrder = { ...orderToUpdate, status: newStatus, lastUpdateTime: new Date().toISOString() };
+    const updatedOrder = { ...orderToUpdate, status: newStatus, lastUpdateTime: getCurrentUTCISOString() }; // Changed to UTC
 
     if (newStatus === 'completed' || newStatus === 'cancelled') {
       setOrdersHistory(prev => {
         const existingIndex = prev.findIndex(o => o.id === orderId);
         if (existingIndex > -1) {
           const updatedHistory = [...prev];
-          updatedHistory[existingIndex] = { ...updatedOrder, completionTime: new Date().toISOString() };
+          updatedHistory[existingIndex] = { ...updatedOrder, completionTime: getCurrentUTCISOString() }; // Changed to UTC
           return updatedHistory;
         }
-        return [...prev, { ...updatedOrder, completionTime: new Date().toISOString() }];
+        return [...prev, { ...updatedOrder, completionTime: getCurrentUTCISOString() }]; // Changed to UTC
       });
       setActiveOrders(prev => prev.filter(o => o.id !== orderId));
       toast({ title: `Pedido ${newStatus === 'completed' ? 'Completado' : 'Cancelado'}`, description: `El pedido ${orderToUpdate.displayId} ha sido marcado como ${newStatus}.`});
@@ -53,7 +53,6 @@ const RestaurantActiveOrdersPage = () => {
   const orderStatusOptions = [
     { value: "pending", label: "Pendiente" },
     { value: "completed", label: "Completado" },
-    // "cancelled" will be handled by a separate button or logic if needed
   ];
 
   const handleReprintTicket = (order) => {
@@ -65,7 +64,7 @@ const RestaurantActiveOrdersPage = () => {
     const orderTime = new Date(order.orderTime).getTime();
     const minutesPassed = (timeNow - orderTime) / (1000 * 60);
     if (order.status === 'pending' && minutesPassed > ORDER_AUTO_COMPLETE_MINUTES) {
-      return true; // Indicates order is overdue
+      return true; 
     }
     return false;
   };
@@ -102,7 +101,7 @@ const RestaurantActiveOrdersPage = () => {
                         <div>
                           <CardTitle className="text-lg">Pedido #{order.displayId}</CardTitle>
                           <CardDescription className="text-xs">
-                            {order.customerName || 'Cliente General'} - {formatDate(order.orderTime)}
+                            {order.customerName || 'Cliente General'} - {formatDate(order.orderTime, true)}
                           </CardDescription>
                         </div>
                          <span className={`px-2 py-0.5 text-xs rounded-full font-medium ${

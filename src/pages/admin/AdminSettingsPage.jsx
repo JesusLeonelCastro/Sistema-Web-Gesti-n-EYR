@@ -1,3 +1,4 @@
+
 import React, { useState, useEffect } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription, CardFooter } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -6,7 +7,18 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { motion } from 'framer-motion';
-import { Settings, DollarSign, ParkingSquare, Save, AlertCircle, XCircle, Truck, Car, PackagePlus as PackageIcon } from 'lucide-react'; // Renamed Package to PackageIcon
+import { Settings, DollarSign, ParkingSquare, Save, AlertCircle, XCircle, Truck, Car, PackagePlus as PackageIcon, DownloadCloud } from 'lucide-react'; // Renamed Package to PackageIcon
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+  AlertDialogTrigger,
+} from "@/components/ui/alert-dialog";
 
 const vehicleTypes = [
   { id: 'Trailer', name: 'Tráiler', icon: Truck },
@@ -75,6 +87,24 @@ const AdminSettingsPageForm = ({ tempSettings, errors, handleChange, handleVehic
         />
         {errors.currencySymbol && <p className="text-sm text-destructive mt-1 flex items-center"><AlertCircle size={14} className="mr-1"/>{errors.currencySymbol}</p>}
       </div>
+      
+      <div className="space-y-2">
+        <Label htmlFor="parkingName" className="flex items-center text-base">
+          <ParkingSquare className="w-5 h-5 mr-2 text-muted-foreground" />
+          Nombre del Estacionamiento
+        </Label>
+        <Input 
+          id="parkingName" 
+          name="parkingName"
+          type="text" 
+          value={tempSettings.parkingName || ''} 
+          onChange={handleChange} 
+          placeholder="Ej: San Jose Parking" 
+          className={`text-lg ${errors.parkingName ? 'border-destructive focus:ring-destructive' : ''}`}
+        />
+        {errors.parkingName && <p className="text-sm text-destructive mt-1 flex items-center"><AlertCircle size={14} className="mr-1"/>{errors.parkingName}</p>}
+      </div>
+
 
       <div className="space-y-4 pt-4 border-t">
           <h3 className="text-xl font-semibold flex items-center">
@@ -120,6 +150,7 @@ const AdminSettingsPage = () => {
     dailyRate: 50, 
     totalSpots: 50,
     currencySymbol: 'Bs.',
+    parkingName: 'San Jose Parking',
     vehicleTypeRates: vehicleTypes.reduce((acc, type) => {
       acc[type.id] = ''; 
       return acc;
@@ -184,6 +215,10 @@ const AdminSettingsPage = () => {
     } else if (tempSettings.currencySymbol.length > 5) {
         newErrors.currencySymbol = "El símbolo de moneda no debe exceder los 5 caracteres.";
     }
+    if (!tempSettings.parkingName || !tempSettings.parkingName.trim()) {
+      newErrors.parkingName = "El nombre del estacionamiento es obligatorio.";
+    }
+
 
     vehicleTypes.forEach(vt => {
       const rate = tempSettings.vehicleTypeRates[vt.id];
@@ -210,8 +245,7 @@ const AdminSettingsPage = () => {
     const finalVehicleTypeRates = { ...tempSettings.vehicleTypeRates };
     for (const typeId in finalVehicleTypeRates) {
         if (finalVehicleTypeRates[typeId] === '' || finalVehicleTypeRates[typeId] === null) {
-            // Allow empty string or null to signify using general rate
-            finalVehicleTypeRates[typeId] = ''; // Ensure it's consistently empty string if not set
+            finalVehicleTypeRates[typeId] = ''; 
         } else {
             finalVehicleTypeRates[typeId] = Number(finalVehicleTypeRates[typeId]);
         }
@@ -221,6 +255,7 @@ const AdminSettingsPage = () => {
         dailyRate: Number(tempSettings.dailyRate),
         totalSpots: Number(tempSettings.totalSpots),
         currencySymbol: tempSettings.currencySymbol.trim(),
+        parkingName: tempSettings.parkingName.trim(),
         vehicleTypeRates: finalVehicleTypeRates,
     });
     toast({
@@ -238,6 +273,7 @@ const AdminSettingsPage = () => {
         dailyRate: 50,
         totalSpots: 50,
         currencySymbol: 'Bs.',
+        parkingName: 'San Jose Parking',
         vehicleTypeRates: vehicleTypes.reduce((acc, type) => {
           acc[type.id] = '';
           return acc;
@@ -252,6 +288,31 @@ const AdminSettingsPage = () => {
       title: 'Datos Reiniciados',
       description: 'El historial de vehículos, vehículos estacionados y configuración han sido reiniciados a los valores por defecto.',
       variant: 'default',
+    });
+  };
+
+  const handleExportData = () => {
+    const parkingData = {
+      parking_settings: JSON.parse(localStorage.getItem('parking_settings') || '{}'),
+      parked_trailers: JSON.parse(localStorage.getItem('parked_trailers') || '[]'),
+      trailer_history: JSON.parse(localStorage.getItem('trailer_history') || '[]'),
+      users: JSON.parse(localStorage.getItem('users') || '[]'),
+    };
+
+    const jsonString = JSON.stringify(parkingData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'parking_data_export_supabase.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Datos Exportados',
+      description: 'Los datos del sistema de estacionamiento han sido exportados en formato JSON.',
     });
   };
 
@@ -284,11 +345,56 @@ const AdminSettingsPage = () => {
               <Button type="submit" className="w-full sm:w-auto text-base py-3">
                 <Save className="w-5 h-5 mr-2" /> Guardar Configuración
               </Button>
-              <Button type="button" variant="destructive" onClick={handleResetData} className="w-full sm:w-auto text-base py-3">
-                <XCircle className="w-5 h-5 mr-2" /> Reiniciar Datos del Estacionamiento
+              <Button type="button" variant="outline" onClick={handleExportData} className="w-full sm:w-auto text-base py-3">
+                <DownloadCloud className="w-5 h-5 mr-2" /> Exportar Datos para Supabase
               </Button>
             </CardFooter>
           </form>
+        </CardContent>
+      </Card>
+
+      <Card className="max-w-3xl mx-auto shadow-xl border-destructive/50 mt-12">
+        <CardHeader>
+          <CardTitle className="text-2xl flex items-center text-destructive">
+            <AlertCircle className="w-7 h-7 mr-3" />
+            Zona de Peligro
+          </CardTitle>
+          <CardDescription className="text-destructive/90">
+            Las acciones en esta sección son irreversibles y pueden causar pérdida de datos.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-4">
+            <div>
+              <h4 className="font-semibold text-base text-foreground">Reiniciar Datos del Estacionamiento</h4>
+              <p className="text-sm text-muted-foreground mb-3">
+                Esto borrará todos los vehículos estacionados, el historial de movimientos y las configuraciones del estacionamiento. 
+                Los datos de usuarios y del sistema de restaurante no se verán afectados.
+              </p>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" className="w-full sm:w-auto">
+                    <XCircle className="w-4 h-4 mr-2" /> Reiniciar Datos del Estacionamiento
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>¿Estás absolutamente seguro?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      Esta acción no se puede deshacer. Esto eliminará permanentemente todos los datos del módulo de estacionamiento, incluyendo vehículos actuales, historial y configuraciones. 
+                      Los datos de usuarios y del sistema de restaurante no se verán afectados.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancelar</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleResetData} className="bg-destructive hover:bg-destructive/90 text-destructive-foreground">
+                      Sí, reiniciar datos del estacionamiento
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </div>
+          </div>
         </CardContent>
       </Card>
     </motion.div>

@@ -7,7 +7,7 @@ import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { motion } from 'framer-motion';
-import { Settings, Percent, Clock, Save, AlertCircle, Info, Utensils, Trash2, AlertTriangle } from 'lucide-react';
+import { Settings, Percent, Clock, Save, AlertCircle, Info, Utensils, Trash2, AlertTriangle, DownloadCloud } from 'lucide-react';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -32,7 +32,6 @@ const RestaurantAdminSettingsPage = () => {
   const [errors, setErrors] = useState({});
   const { toast } = useToast();
 
-  // Specific localStorage hooks for data to be reset
   const [, setMenuItems] = useLocalStorage('restaurant_menu_items', []);
   const [, setOrdersHistory] = useLocalStorage('restaurant_orders_history', []);
   const [, setActiveOrders] = useLocalStorage('restaurant_active_orders', []);
@@ -106,13 +105,40 @@ const RestaurantAdminSettingsPage = () => {
     setOrdersHistory([]);
     setActiveOrders([]);
     setOrderCounters({}); 
-    setSettings(defaultRestaurantSettings); // Reset settings to default
-    setTempSettings(defaultRestaurantSettings); // Also reset temp form
+    setSettings(defaultRestaurantSettings); 
+    setTempSettings(defaultRestaurantSettings); 
     toast({
       title: "Datos del Restaurante Reiniciados",
       description: "Todo el menú, historial de pedidos, pedidos activos y configuraciones del restaurante han sido borrados y restaurados a sus valores por defecto.",
       variant: "default",
       duration: 7000
+    });
+  };
+
+  const handleExportRestaurantData = () => {
+    const restaurantData = {
+      restaurant_settings: JSON.parse(localStorage.getItem('restaurant_settings') || '{}'),
+      restaurant_menu_items: JSON.parse(localStorage.getItem('restaurant_menu_items') || '[]'),
+      restaurant_orders_history: JSON.parse(localStorage.getItem('restaurant_orders_history') || '[]'),
+      restaurant_active_orders: JSON.parse(localStorage.getItem('restaurant_active_orders') || '[]'),
+      restaurant_order_counters: JSON.parse(localStorage.getItem('restaurant_order_counters') || '{}'),
+      users: JSON.parse(localStorage.getItem('users') || '[]'), // Include users as they might be relevant for both systems
+    };
+
+    const jsonString = JSON.stringify(restaurantData, null, 2);
+    const blob = new Blob([jsonString], { type: 'application/json' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'restaurant_data_export_supabase.json';
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    toast({
+      title: 'Datos Exportados',
+      description: 'Los datos del sistema de restaurante han sido exportados en formato JSON.',
     });
   };
   
@@ -211,9 +237,12 @@ const RestaurantAdminSettingsPage = () => {
               {errors.currencySymbol && <p className="text-sm text-destructive mt-1 flex items-center"><AlertCircle size={14} className="mr-1"/>{errors.currencySymbol}</p>}
             </div>
             
-            <CardFooter className="pt-8 pb-0 px-0">
+            <CardFooter className="pt-8 pb-0 px-0 flex flex-col sm:flex-row justify-between gap-4">
               <Button type="submit" className="w-full sm:w-auto text-base py-3">
-                <Save className="w-5 h-5 mr-2" /> Guardar Configuración del Restaurante
+                <Save className="w-5 h-5 mr-2" /> Guardar Configuración
+              </Button>
+              <Button type="button" variant="outline" onClick={handleExportRestaurantData} className="w-full sm:w-auto text-base py-3">
+                <DownloadCloud className="w-5 h-5 mr-2" /> Exportar Datos para Supabase
               </Button>
             </CardFooter>
           </form>

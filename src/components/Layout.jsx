@@ -7,7 +7,7 @@ import { Toaster } from '@/components/ui/toaster';
 import { motion, AnimatePresence } from 'framer-motion';
 import { 
   LayoutDashboard, LogOut, ParkingSquare, Users, FileText, Settings as SettingsIcon, BarChart3, 
-  ChevronLeft, Menu, Truck, ListChecks, Sun, Moon, ChefHat, Utensils, ShoppingCart, FileSpreadsheet
+  ChevronLeft, Menu, Truck, ListChecks, Sun, Moon, ChefHat, Utensils, ShoppingCart, FileSpreadsheet, Clock
 } from 'lucide-react';
 import {
   Select,
@@ -179,6 +179,35 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   );
 };
 
+const ChileTimeDisplay = () => {
+  const [time, setTime] = useState('');
+
+  useEffect(() => {
+    const updateChileTime = () => {
+      const chileTime = new Date().toLocaleTimeString('es-CL', {
+        timeZone: 'America/Santiago',
+        hour: '2-digit',
+        minute: '2-digit',
+      });
+      setTime(chileTime);
+    };
+
+    updateChileTime();
+    const intervalId = setInterval(updateChileTime, 60000); // Update every minute
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  if (!time) return null;
+
+  return (
+    <div className="flex items-center space-x-1 text-sm text-muted-foreground">
+      <Clock className="w-4 h-4" />
+      <span>{time} <span className="text-xs">(CLT)</span></span>
+    </div>
+  );
+};
+
 
 const Layout = () => {
   const { user, logout, isAuthenticated, activeSystem } = useAuth();
@@ -205,7 +234,6 @@ const Layout = () => {
   }
   
   if (isAuthenticated && location.pathname === '/login') {
-     // Redirect to appropriate dashboard based on active system
      const defaultPath = activeSystem === 'restaurant' ? '/restaurant/dashboard' : '/dashboard';
      return <Navigate to={user.role === 'administrator' ? (activeSystem === 'restaurant' ? '/restaurant/admin/overview' : '/admin/overview') : 
                          user.role === 'operator' ? (activeSystem === 'restaurant' ? '/restaurant/operator/orders' : '/operator/entry-log') : 
@@ -236,6 +264,7 @@ const Layout = () => {
             {isSidebarOpen ? <ChevronLeft className="w-5 h-5" /> : <Menu className="w-5 h-5" />}
           </Button>
           <div className="flex items-center space-x-3 sm:space-x-4">
+            <ChileTimeDisplay />
             <Button variant="ghost" size="icon" onClick={toggleTheme} className="text-muted-foreground hover:text-foreground">
               {theme === 'light' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
               <span className="sr-only">Toggle theme</span>

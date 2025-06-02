@@ -1,4 +1,3 @@
-
 import React, { useMemo, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -8,7 +7,7 @@ import { Utensils, DollarSign, TrendingUp, Users, ShoppingBag, CalendarDays, Fil
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { useAuth } from '@/contexts/AuthContext';
 import { menuCategories } from '@/pages/restaurant/admin/RestaurantMenuManagementPage'; 
-import { formatDate } from '@/lib/parkingUtils';
+import { formatDate, getCurrentUTCISOString } from '@/lib/parkingUtils';
 
 const RestaurantAdminOverviewPage = () => {
   const { user } = useAuth();
@@ -17,18 +16,22 @@ const RestaurantAdminOverviewPage = () => {
   const [systemUsers] = useLocalStorage('sanjose_users', []);
   const [settings] = useLocalStorage('restaurant_settings', { currencySymbol: 'Bs.' });
 
-  const [filterDate, setFilterDate] = useState(new Date().toISOString().split('T')[0]); // Default to today
-  const [showOverall, setShowOverall] = useState(false); // To toggle between specific date and overall
+  const getTodayInSantiago = () => new Date().toLocaleDateString('en-CA', { timeZone: 'America/Santiago' });
+
+  const [filterDate, setFilterDate] = useState(getTodayInSantiago()); 
+  const [showOverall, setShowOverall] = useState(false); 
 
   const filteredOrders = useMemo(() => {
-    if (showOverall || !filterDate) return ordersHistory;
+    if (showOverall || !filterDate) {
+      return ordersHistory.sort((a, b) => new Date(b.orderTime) - new Date(a.orderTime));
+    }
+    
     return ordersHistory.filter(o => {
-      const orderDate = new Date(o.orderTime);
-      const selectedDate = new Date(filterDate + "T00:00:00"); // Ensure correct date comparison
-      return orderDate.getFullYear() === selectedDate.getFullYear() &&
-             orderDate.getMonth() === selectedDate.getMonth() &&
-             orderDate.getDate() === selectedDate.getDate();
-    });
+      // Get the date part of orderTime in Santiago's timezone
+      const orderDateInSantiago = new Date(o.orderTime).toLocaleDateString('en-CA', {timeZone: 'America/Santiago'});
+      return orderDateInSantiago === filterDate;
+    }).sort((a, b) => new Date(b.orderTime) - new Date(a.orderTime));
+
   }, [ordersHistory, filterDate, showOverall]);
 
   const totalMenuItems = menuItems.length;
@@ -67,22 +70,34 @@ const RestaurantAdminOverviewPage = () => {
 
   const handleFilterDateChange = (e) => {
     setFilterDate(e.target.value);
-    setShowOverall(false); // When date changes, show data for that specific date
+    setShowOverall(false); 
   };
 
   const toggleShowOverall = () => {
     setShowOverall(!showOverall);
-    if (!showOverall) { // if we are toggling to show overall
-      setFilterDate(''); // Clear specific date filter
-    } else { // if we are toggling to show specific date (default to today)
-      setFilterDate(new Date().toISOString().split('T')[0]);
+    if (!showOverall) { 
+      setFilterDate(''); 
+    } else { 
+      setFilterDate(getTodayInSantiago());
     }
   }
 
   const getPeriodLabel = () => {
     if (showOverall) return "Histórico";
-    if (filterDate === new Date().toISOString().split('T')[0]) return `Hoy (${formatDate(filterDate)})`;
-    return filterDate ? `El ${formatDate(filterDate)}` : "No definido";
+    
+    // Construct a UTC ISO string from filterDate for formatDate function
+    // filterDate is 'YYYY-MM-DD'
+    const parts = filterDate.split('-');
+    const year = parseInt(parts[0]);
+    const month = parseInt(parts[1]) -1; // JS months are 0-indexed
+    const day = parseInt(parts[2]);
+    
+    // Create a date object that represents midnight UTC on that day
+    // This is just for display formatting, not for filtering logic
+    const displayDateUTC = new Date(Date.UTC(year, month, day, 0, 0, 0));
+    
+    if (filterDate === getTodayInSantiago()) return `Hoy (${formatDate(displayDateUTC.toISOString())})`;
+    return filterDate ? `El ${formatDate(displayDateUTC.toISOString())}` : "No definido";
   }
 
 
@@ -111,7 +126,7 @@ const RestaurantAdminOverviewPage = () => {
                 onChange={handleFilterDateChange}
                 disabled={showOverall}
                 className="pl-10 bg-muted/50 focus:bg-background w-full"
-                max={new Date().toISOString().split("T")[0]}
+                max={getTodayInSantiago()} // Max date is today in Santiago
             />
         </div>
         <Button onClick={toggleShowOverall} variant="outline">
@@ -178,12 +193,12 @@ const RestaurantAdminOverviewPage = () => {
             ) : (
               <p className="text-muted-foreground text-center py-6">
                 {showOverall && !ordersHistory.length ? "No hay datos de ingresos históricos por categoría." :
-                 !showOverall && !filteredOrders.length && filterDate ? `No hay datos de ingresos por categoría para ${formatDate(filterDate)}.` :
+                 !showOverall && !filteredOrders.length && filterDate ? `No hay datos de ingresos por categoría para ${getPeriodLabel().split('(')[0].trim()}.` :
                  "No hay datos de ingresos para el período/filtros seleccionados."
                 }
               </p>
             )}
-          </CardContent>
+          </CardContent>        
         </Card>
       </motion.div>
 

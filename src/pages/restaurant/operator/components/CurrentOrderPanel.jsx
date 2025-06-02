@@ -1,3 +1,4 @@
+
 import React from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -13,13 +14,17 @@ const CurrentOrderPanel = ({
   setCustomerName,
   orderNotes,
   setOrderNotes,
-  addToOrder,
+  addItemToOrder,
   removeFromOrder,
   deleteFromOrder,
   totalAmount,
   submitOrder,
-  settings,
+  settings, 
 }) => {
+  
+  const currencySymbol = settings?.currencySymbol || 'Bs.';
+  const currentTotalAmount = totalAmount || 0;
+
   return (
     <Card className="lg:col-span-1 shadow-xl flex flex-col h-full">
       <CardHeader>
@@ -44,12 +49,12 @@ const CurrentOrderPanel = ({
               <TableBody>
                 {currentOrderItems.map(item => (
                   <TableRow key={item.id}>
-                    <TableCell className="font-medium text-xs py-1 px-1">{item.name} <br/><span className="text-xs text-muted-foreground">{settings.currencySymbol} {item.price.toFixed(2)} c/u</span></TableCell>
+                    <TableCell className="font-medium text-xs py-1 px-1">{item.name} <br/><span className="text-xs text-muted-foreground">{currencySymbol} {(item.price || 0).toFixed(2)} c/u</span></TableCell>
                     <TableCell className="text-center py-1 px-1">
                       <div className="flex items-center justify-center">
                         <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => removeFromOrder(item.id)}><Minus className="h-3 w-3"/></Button>
                         <span className="mx-1 text-xs">{item.quantity}</span>
-                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => addToOrder(item)}><Plus className="h-3 w-3"/></Button>
+                        <Button variant="ghost" size="icon" className="h-5 w-5" onClick={() => addItemToOrder(item)}><Plus className="h-3 w-3"/></Button>
                       </div>
                     </TableCell>
                     <TableCell className="text-right py-1 px-1">
@@ -72,7 +77,7 @@ const CurrentOrderPanel = ({
           </div>
           <div className="flex justify-between items-center mt-3 font-semibold text-md">
             <span>Total:</span>
-            <span>{settings.currencySymbol} {totalAmount.toFixed(2)}</span>
+            <span>{currencySymbol} {currentTotalAmount.toFixed(2)}</span>
           </div>
           <Button onClick={submitOrder} className="w-full mt-3 text-sm py-2.5" disabled={currentOrderItems.length === 0}>
             <Printer className="mr-2 h-4 w-4" /> Pagar y Generar Ticket

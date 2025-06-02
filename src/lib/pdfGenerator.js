@@ -6,9 +6,9 @@ export const generateHistoryPDF = (filteredHistory, settings, totalFeeForReport)
   const doc = new jsPDF();
   doc.text("Historial de Movimientos de Vehículos - San Jose Parking", 14, 16);
   doc.setFontSize(10);
-  doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-ES')}`, 14, 22);
+  doc.text(`Fecha de generación: ${formatDate(new Date().toISOString(), true)}`, 14, 22);
 
-  const tableColumn = ["Matrícula", "Tipo", "País", "Entrada", "Salida", "Estadía", `Tarifa (${settings.currencySymbol})`, "Descripción", "Estado"];
+  const tableColumn = ["Matrícula", "Tipo", "País", "Entrada", "Op. E.", "Salida", "Op. S.", "Estadía", `Tarifa (${settings.currencySymbol})`, "Estado"];
   const tableRows = [];
 
   filteredHistory.forEach(item => {
@@ -18,16 +18,16 @@ export const generateHistoryPDF = (filteredHistory, settings, totalFeeForReport)
     }
     let exitText = item.exitTime ? formatDate(item.exitTime) : '---------------';
 
-
     const itemData = [
       item.plate,
       item.vehicleType || 'N/A',
-      item.country,
+      item.country || 'N/A',
       formatDate(item.entryTime),
+      item.entryOperatorName || 'N/A',
       exitText,
+      item.exitOperatorName || 'N/A',
       item.exitTime ? calculateStayDuration(item.entryTime, item.exitTime) : calculateStayDuration(item.entryTime),
       item.status === 'exited' ? (item.calculatedFee !== undefined ? item.calculatedFee.toFixed(2) : 'N/A') : 'N/A',
-      item.description || '',
       statusText
     ];
     tableRows.push(itemData);
@@ -39,17 +39,18 @@ export const generateHistoryPDF = (filteredHistory, settings, totalFeeForReport)
     startY: 30,
     theme: 'striped',
     headStyles: { fillColor: [33, 150, 243] }, 
-    styles: { fontSize: 7, cellPadding: 1.5 },
+    styles: { fontSize: 6, cellPadding: 1 }, 
     columnStyles: {
-      0: { cellWidth: 18 }, 
-      1: { cellWidth: 18 }, 
-      2: { cellWidth: 15 }, 
-      3: { cellWidth: 22 }, 
-      4: { cellWidth: 22 }, 
-      5: { cellWidth: 15 }, 
-      6: { cellWidth: 15, halign: 'right' }, 
-      7: { cellWidth: 30 }, 
-      8: { cellWidth: 20 }, 
+      0: { cellWidth: 16 }, 
+      1: { cellWidth: 16 }, 
+      2: { cellWidth: 13 }, 
+      3: { cellWidth: 20 }, 
+      4: { cellWidth: 18 }, 
+      5: { cellWidth: 20 }, 
+      6: { cellWidth: 18 }, 
+      7: { cellWidth: 13 }, 
+      8: { cellWidth: 15, halign: 'right' }, 
+      9: { cellWidth: 20 }, 
     },
     didParseCell: function (data) {
         const statusIndex = tableColumn.indexOf("Estado");
@@ -61,6 +62,14 @@ export const generateHistoryPDF = (filteredHistory, settings, totalFeeForReport)
                 data.cell.styles.textColor = [220, 53, 69]; 
             } else if (data.cell.raw === 'Estacionado') {
                 data.cell.styles.textColor = [40, 167, 69]; 
+            }
+        }
+        
+        const opEntryIndex = tableColumn.indexOf("Op. E.");
+        const opExitIndex = tableColumn.indexOf("Op. S.");
+        if ((data.column.index === opEntryIndex || data.column.index === opExitIndex) && data.cell.section === 'body') {
+            if (typeof data.cell.raw === 'string' && data.cell.raw.length > 10) {
+                data.cell.text = data.cell.raw.substring(0,9) + '...';
             }
         }
     },
@@ -75,7 +84,6 @@ export const generateHistoryPDF = (filteredHistory, settings, totalFeeForReport)
   doc.setFontSize(10);
   doc.setFont(undefined, 'bold');
   doc.text(`Total de Tarifas (Reporte): ${settings.currencySymbol} ${totalFeeForReport.toFixed(2)}`, 14, finalY + 10);
-
 
   doc.save(`historial_vehiculos_sanjose_${new Date().toISOString().split('T')[0]}.pdf`);
 };
@@ -103,10 +111,14 @@ export const generateOrderTicketPDF = (order, settings) => {
   doc.setFont(undefined, 'normal');
   doc.text(`Orden: ${order.displayId || order.id.substring(0,12)}`, pageWidth / 2, yPosition, { align: 'center' });
   yPosition += 4;
-  doc.text(`Fecha: ${formatDate(order.orderTime, true)}`, pageWidth / 2, yPosition, { align: 'center' });
+  doc.text(`Fecha: ${formatDate(order.orderTime, true)}`, pageWidth / 2, yPosition, { align: 'center' }); // true for shortTime
   yPosition += 4;
   if (order.customerName && order.customerName !== 'Cliente General') {
     doc.text(`Cliente: ${order.customerName}`, pageWidth / 2, yPosition, { align: 'center' });
+    yPosition += 4;
+  }
+  if (order.operatorName) {
+    doc.text(`Atendido por: ${order.operatorName}`, pageWidth / 2, yPosition, { align: 'center' });
     yPosition += 4;
   }
   yPosition += 2; 
@@ -158,7 +170,8 @@ export const generateOrderTicketPDF = (order, settings) => {
         yPosition = data.cursor.y;
     }
   });
-  yPosition += 2;
+  yPosition = doc.lastAutoTable.finalY + 2 || yPosition + 2;
+
 
   doc.setLineDashPattern([1, 1], 0);
   doc.line(margin, yPosition, pageWidth - margin, yPosition);
@@ -193,7 +206,7 @@ export const generateOrdersHistoryPDF = (filteredOrders, settings) => {
   const doc = new jsPDF();
   doc.text("Historial de Pedidos - San Jose Restaurante", 14, 16);
   doc.setFontSize(10);
-  doc.text(`Fecha de generación: ${new Date().toLocaleDateString('es-ES')}`, 14, 22);
+  doc.text(`Fecha de generación: ${formatDate(new Date().toISOString(), true)}`, 14, 22);
   doc.text(`Total de pedidos en este reporte: ${filteredOrders.length}`, 14, 26);
 
   const tableColumn = ["ID Pedido", "Fecha y Hora", "Cliente", `Total (${settings.currencySymbol})`, "Estado", "Operador"];
@@ -228,4 +241,74 @@ export const generateOrdersHistoryPDF = (filteredOrders, settings) => {
     }
   });
   doc.save(`historial_pedidos_restaurante_${new Date().toISOString().split('T')[0]}.pdf`);
+};
+
+export const generateEntryTicketPDF = (vehicleEntry, settings) => {
+  const doc = new jsPDF({
+    orientation: 'portrait',
+    unit: 'mm',
+    format: [72, 90] 
+  });
+
+  const parkingName = settings.parkingName || 'Garaje San José';
+  const pageWidth = doc.internal.pageSize.getWidth();
+  const margin = 5;
+  let yPosition = margin;
+
+  doc.setFontSize(12);
+  doc.setFont(undefined, 'bold');
+  doc.text(parkingName, pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 6;
+
+  doc.setFontSize(10);
+  doc.setFont(undefined, 'bold');
+  doc.text("TICKET DE INGRESO", pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 6;
+  
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'normal');
+  doc.text(`Ticket ID: ${vehicleEntry.id.substring(vehicleEntry.id.length - 8).toUpperCase()}`, margin, yPosition);
+  yPosition += 5;
+
+  doc.setLineDashPattern([0.5, 0.5], 0);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  yPosition += 4;
+  doc.setLineDashPattern([], 0);
+
+  const field = (label, value) => {
+    doc.setFont(undefined, 'bold');
+    doc.text(`${label}:`, margin, yPosition);
+    doc.setFont(undefined, 'normal');
+    const valueWidth = doc.getTextWidth(value);
+    const labelWidth = doc.getTextWidth(label + ": ");
+    if (labelWidth + valueWidth > pageWidth - margin * 2) {
+        const splitValue = doc.splitTextToSize(value, pageWidth - margin * 2 - labelWidth);
+        doc.text(splitValue, margin + labelWidth, yPosition);
+        yPosition += (splitValue.length * 4);
+    } else {
+        doc.text(value, margin + labelWidth, yPosition);
+        yPosition += 4;
+    }
+  };
+
+  field("Matrícula", vehicleEntry.plate);
+  field("Tipo", vehicleEntry.vehicleType);
+  field("País", vehicleEntry.country);
+  field("Entrada", formatDate(vehicleEntry.entryTime, true)); // true for shortTime
+  
+  yPosition += 2;
+
+  doc.setLineDashPattern([0.5, 0.5], 0);
+  doc.line(margin, yPosition, pageWidth - margin, yPosition);
+  yPosition += 5;
+  doc.setLineDashPattern([], 0);
+  
+  doc.setFontSize(8);
+  doc.setFont(undefined, 'bold');
+  doc.text("¡Gracias por su preferencia!", pageWidth / 2, yPosition, { align: 'center' });
+  yPosition += 4;
+  doc.setFontSize(7);
+  doc.text(parkingName, pageWidth / 2, yPosition, { align: 'center' });
+
+  doc.save(`ticket_entrada_${vehicleEntry.plate}_${formatDate(new Date().toISOString(), true).replace(/[\/:]/g, '-')}.pdf`);
 };

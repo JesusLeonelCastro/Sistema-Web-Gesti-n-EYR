@@ -1,3 +1,4 @@
+
 import React, { useState, useMemo } from 'react';
 import useLocalStorage from '@/hooks/useLocalStorage';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
@@ -6,15 +7,16 @@ import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { motion } from 'framer-motion';
-import { History, Search, XCircle, Download, CalendarDays, Filter, ArrowUpDown } from 'lucide-react';
+import { History, Search, XCircle, Download, CalendarDays, Filter, ArrowUpDown, User as UserIcon, Ticket } from 'lucide-react';
 import PaginationControls from '@/components/PaginationControls';
 import { formatDate, calculateStayDuration, vehicleTypeIcons } from '@/lib/parkingUtils';
-import { generateHistoryPDF } from '@/lib/pdfGenerator';
+import { generateHistoryPDF, generateEntryTicketPDF } from '@/lib/pdfGenerator';
 import { cn } from "@/lib/utils";
+import { useToast } from '@/components/ui/use-toast';
 
-const ITEMS_PER_PAGE = 25;
+const ITEMS_PER_PAGE = 20;
 
-const HistoryTable = ({ historyItems, settings, totalCalculatedFee }) => {
+const HistoryTable = ({ historyItems, settings, totalCalculatedFee, onGenerateTicket }) => {
   if (!historyItems || historyItems.length === 0) {
     return null;
   }
@@ -25,11 +27,13 @@ const HistoryTable = ({ historyItems, settings, totalCalculatedFee }) => {
         <TableRow>
           <TableHead>Matrícula</TableHead>
           <TableHead>Tipo</TableHead>
-          <TableHead className="hidden sm:table-cell">País</TableHead>
-          <TableHead className="hidden md:table-cell">Entrada</TableHead>
-          <TableHead className="hidden md:table-cell">Salida</TableHead>
+          <TableHead className="hidden sm:table-cell">Entrada</TableHead>
+          <TableHead className="hidden sm:table-cell">Op. Entrada</TableHead>
+          <TableHead className="hidden sm:table-cell">Salida</TableHead>
+          <TableHead className="hidden sm:table-cell">Op. Salida</TableHead>
           <TableHead>Estadía</TableHead>
           <TableHead className="text-right">Tarifa ({settings.currencySymbol})</TableHead>
+          <TableHead className="text-center">Acciones</TableHead>
         </TableRow>
       </TableHeader>
       <TableBody>
@@ -38,7 +42,7 @@ const HistoryTable = ({ historyItems, settings, totalCalculatedFee }) => {
           
           let rowClassName = "hover:bg-primary/5";
           let exitCellText = item.exitTime ? formatDate(item.exitTime) : <span className="text-muted-foreground">---------------</span>;
-          let exitCellClassName = "hidden md:table-cell";
+          let exitCellClassName = "hidden sm:table-cell";
 
           if (item.forcedExit) {
             rowClassName = cn(rowClassName, 'bg-yellow-500/10 dark:bg-yellow-700/20');
@@ -52,7 +56,7 @@ const HistoryTable = ({ historyItems, settings, totalCalculatedFee }) => {
 
           return (
             <motion.tr
-              key={item.id + (item.exitTime || '')}
+              key={item.id + (item.exitTime || '') + index}
               initial={{ opacity: 0, y: 10 }}
               animate={{ opacity: 1, y: 0 }}
               transition={{ delay: index * 0.03 }}
@@ -63,11 +67,12 @@ const HistoryTable = ({ historyItems, settings, totalCalculatedFee }) => {
                 <IconComponent className="w-4 h-4 mr-2 text-muted-foreground flex-shrink-0" />
                 <span className="truncate">{item.vehicleType || 'N/A'}</span>
               </TableCell>
-              <TableCell className="hidden sm:table-cell">{item.country}</TableCell>
-              <TableCell className="hidden md:table-cell">{formatDate(item.entryTime)}</TableCell>
+              <TableCell className="hidden sm:table-cell">{formatDate(item.entryTime)}</TableCell>
+              <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{item.entryOperatorName || 'N/A'}</TableCell>
               <TableCell className={exitCellClassName}>
                 {exitCellText}
               </TableCell>
+              <TableCell className="hidden sm:table-cell text-xs text-muted-foreground">{item.exitOperatorName || 'N/A'}</TableCell>
               <TableCell>
                 {item.exitTime ? calculateStayDuration(item.entryTime, item.exitTime) : calculateStayDuration(item.entryTime)}
               </TableCell>
@@ -75,14 +80,22 @@ const HistoryTable = ({ historyItems, settings, totalCalculatedFee }) => {
                 {item.status === 'exited' ? (item.calculatedFee !== undefined ? item.calculatedFee.toFixed(2) : 'N/A') : 'N/A'}
                 {item.forcedExit && <span className="text-xs text-yellow-600 dark:text-yellow-400 ml-1">(Forzada)</span>}
               </TableCell>
+              <TableCell className="text-center">
+                {item.type === 'entry' || (item.status === 'parked' && !item.exitTime) || (item.status === 'exited' && item.entryTime) ? (
+                  <Button variant="ghost" size="icon" onClick={() => onGenerateTicket(item)} title="Generar Ticket de Ingreso">
+                    <Ticket className="h-4 w-4 text-blue-500" />
+                  </Button>
+                ) : null}
+              </TableCell>
             </motion.tr>
           )
         })}
       </TableBody>
       <TableFooter>
         <TableRow>
-          <TableCell colSpan={6} className="text-right font-bold text-lg">Total Tarifas (Visibles):</TableCell>
+          <TableCell colSpan={8} className="text-right font-bold text-lg">Total Tarifas (Visibles):</TableCell>
           <TableCell className="text-right font-bold text-lg">{settings.currencySymbol} {totalCalculatedFee.toFixed(2)}</TableCell>
+          <TableCell></TableCell>
         </TableRow>
       </TableFooter>
     </Table>
@@ -92,11 +105,12 @@ const HistoryTable = ({ historyItems, settings, totalCalculatedFee }) => {
 
 const AdminHistoryPage = () => {
   const [trailerHistory] = useLocalStorage('trailer_history', []);
-  const [settings] = useLocalStorage('parking_settings', { dailyRate: 50, currencySymbol: 'Bs.', vehicleTypeRates: {} });
+  const [settings] = useLocalStorage('parking_settings', { dailyRate: 50, currencySymbol: 'Bs.', vehicleTypeRates: {}, parkingName: 'San Jose Parking' });
   const [searchTerm, setSearchTerm] = useState('');
   const [filterDate, setFilterDate] = useState('');
-  const [movementTypeFilter, setMovementTypeFilter] = useState('all'); // 'all', 'entry', 'exit'
+  const [movementTypeFilter, setMovementTypeFilter] = useState('all'); 
   const [currentPage, setCurrentPage] = useState(1);
+  const { toast } = useToast();
 
   const getRateForVehicle = (vehicleType) => {
     const specificRate = settings.vehicleTypeRates?.[vehicleType];
@@ -135,9 +149,11 @@ const AdminHistoryPage = () => {
     if (searchTerm) {
       items = items.filter(item =>
         item.plate.toLowerCase().includes(searchTerm.toLowerCase()) ||
-        item.country.toLowerCase().includes(searchTerm.toLowerCase()) ||
+        (item.country && item.country.toLowerCase().includes(searchTerm.toLowerCase())) ||
         (item.vehicleType && item.vehicleType.toLowerCase().includes(searchTerm.toLowerCase())) ||
-        (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase()))
+        (item.description && item.description.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.entryOperatorName && item.entryOperatorName.toLowerCase().includes(searchTerm.toLowerCase())) ||
+        (item.exitOperatorName && item.exitOperatorName.toLowerCase().includes(searchTerm.toLowerCase()))
       );
     }
     return items.sort((a, b) => new Date(b.exitTime || b.entryTime) - new Date(a.exitTime || a.entryTime));
@@ -161,6 +177,18 @@ const AdminHistoryPage = () => {
 
   const handleDownloadPDF = () => {
     generateHistoryPDF(filteredHistory, settings, totalCalculatedFeeForFiltered);
+  };
+
+  const handleGenerateEntryTicket = (vehicleEntry) => {
+    if (!vehicleEntry || !vehicleEntry.entryTime) {
+        toast({
+            title: "Error al generar ticket",
+            description: "No hay suficiente información para generar el ticket de entrada.",
+            variant: "destructive",
+        });
+        return;
+    }
+    generateEntryTicketPDF(vehicleEntry, settings);
   };
 
 
@@ -187,7 +215,7 @@ const AdminHistoryPage = () => {
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-muted-foreground" />
               <Input
                 type="text"
-                placeholder="Buscar por matrícula, país..."
+                placeholder="Buscar por matrícula, operador..."
                 value={searchTerm}
                 onChange={(e) => {setSearchTerm(e.target.value); setCurrentPage(1);}}
                 className="pl-10 bg-muted/50 focus:bg-background w-full"
@@ -233,7 +261,12 @@ const AdminHistoryPage = () => {
           <div className="flex-grow overflow-y-auto">
             {paginatedHistory.length > 0 ? (
               <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} transition={{ delay: 0.1 }}>
-                <HistoryTable historyItems={paginatedHistory} settings={settings} totalCalculatedFee={totalCalculatedFeeForFiltered} />
+                <HistoryTable 
+                    historyItems={paginatedHistory} 
+                    settings={settings} 
+                    totalCalculatedFee={totalCalculatedFeeForFiltered}
+                    onGenerateTicket={handleGenerateEntryTicket}
+                />
               </motion.div>
             ) : (
               <motion.p

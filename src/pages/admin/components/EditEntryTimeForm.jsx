@@ -1,8 +1,11 @@
+
 import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { useToast } from '@/components/ui/use-toast';
+import { DialogHeader, DialogTitle, DialogDescription, DialogFooter, DialogClose } from '@/components/ui/dialog'; // Added Dialog components
+import { X } from 'lucide-react';
 
 const EditEntryTimeForm = ({ trailer, onSave, onCancel }) => {
   const { toast } = useToast();
@@ -39,46 +42,48 @@ const EditEntryTimeForm = ({ trailer, onSave, onCancel }) => {
         return;
     }
     
-    onSave(newEntryDateTime);
+    onSave(trailer.id, newEntryDateTime);
   };
 
   return (
-    <form onSubmit={handleSubmit} className="space-y-4 py-4">
-      <div>
-        <h3 className="text-lg font-medium mb-2">Editar Fecha y Hora de Entrada</h3>
-        <p className="text-sm text-muted-foreground mb-4">
+    <>
+      <DialogHeader>
+        <DialogTitle>Editar Fecha y Hora de Entrada</DialogTitle>
+        <DialogDescription>
           Modifique la fecha y hora de ingreso para el vehículo <strong className="text-primary">{trailer.plate}</strong>.
-        </p>
-      </div>
-      <div className="grid grid-cols-2 gap-4">
-        <div>
-          <Label htmlFor="entryDate">Fecha de Entrada</Label>
-          <Input
-            id="entryDate"
-            type="date"
-            value={entryDate}
-            onChange={(e) => setEntryDate(e.target.value)}
-            className="mt-1"
-          />
+        </DialogDescription>
+      </DialogHeader>
+      <form onSubmit={handleSubmit} className="space-y-4 py-4">
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <Label htmlFor="entryDate">Fecha de Entrada</Label>
+            <Input
+              id="entryDate"
+              type="date"
+              value={entryDate}
+              onChange={(e) => setEntryDate(e.target.value)}
+              className="mt-1"
+            />
+          </div>
+          <div>
+            <Label htmlFor="entryTime">Hora de Entrada</Label>
+            <Input
+              id="entryTime"
+              type="time"
+              value={entryTime}
+              onChange={(e) => setEntryTime(e.target.value)}
+              className="mt-1"
+            />
+          </div>
         </div>
-        <div>
-          <Label htmlFor="entryTime">Hora de Entrada</Label>
-          <Input
-            id="entryTime"
-            type="time"
-            value={entryTime}
-            onChange={(e) => setEntryTime(e.target.value)}
-            className="mt-1"
-          />
-        </div>
-      </div>
-      <div className="flex justify-end space-x-2 pt-4">
-        <Button type="button" variant="outline" onClick={onCancel}>
-          Cancelar
-        </Button>
-        <Button type="submit">Guardar Cambios</Button>
-      </div>
-    </form>
+        <DialogFooter className="pt-4">
+          <Button type="button" variant="outline" onClick={onCancel}>
+            <X className="h-4 w-4 mr-2"/> Cancelar
+          </Button>
+          <Button type="submit">Guardar Cambios</Button>
+        </DialogFooter>
+      </form>
+    </>
   );
 };
 

@@ -59,7 +59,7 @@ const OperatorActiveTrailersPage = () => {
     if (filterDate) {
       items = items.filter(trailer => {
         const entryDate = new Date(trailer.entryTime);
-        const filterDateObj = new Date(filterDate + "T00:00:00"); // Ensure filterDate is treated as local start of day
+        const filterDateObj = new Date(filterDate + "T00:00:00"); 
 
         return entryDate.getFullYear() === filterDateObj.getFullYear() &&
                entryDate.getMonth() === filterDateObj.getMonth() &&
@@ -86,6 +86,10 @@ const OperatorActiveTrailersPage = () => {
 
   const handlePageChange = (page) => {
     setCurrentPage(page);
+  };
+
+  const handleRegisterExitClick = (plate) => {
+    navigate(`/operator/exit-log?plate=${encodeURIComponent(plate)}`);
   };
 
   return (
@@ -173,7 +177,7 @@ const OperatorActiveTrailersPage = () => {
                       <TableCell>{formatDate(trailer.entryTime)}</TableCell>
                       <TableCell>{calculateStayDuration(trailer.entryTime)}</TableCell>
                       <TableCell className="text-right">
-                        <Button variant="outline" size="sm" onClick={() => navigate(`/operator/exit-log?plate=${trailer.plate}`)}>
+                        <Button variant="outline" size="sm" onClick={() => handleRegisterExitClick(trailer.plate)}>
                           Registrar Salida
                         </Button>
                       </TableCell>

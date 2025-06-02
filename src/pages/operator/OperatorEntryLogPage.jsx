@@ -7,8 +7,11 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from '@/components/ui/use-toast';
 import useLocalStorage from '@/hooks/useLocalStorage';
+import { useAuth } from '@/contexts/AuthContext';
 import { motion } from 'framer-motion';
 import { Truck, CalendarPlus, Flag, AlertCircle, Phone, FileText, Car, Package, ParkingSquare, Users2, CheckSquare } from 'lucide-react';
+import { generateEntryTicketPDF } from '@/lib/pdfGenerator';
+import { getCurrentUTCISOString, formatDate } from '@/lib/parkingUtils';
 
 const countryOptions = [
   { value: "Bolivia", label: "Bolivia" },
@@ -36,9 +39,10 @@ const OperatorEntryLogPage = () => {
   const [description, setDescription] = useState('');
   const [errors, setErrors] = useState({});
 
+  const { user } = useAuth();
   const [parkedTrailers, setParkedTrailers] = useLocalStorage('parked_trailers', []);
   const [trailerHistory, setTrailerHistory] = useLocalStorage('trailer_history', []);
-  const [settings] = useLocalStorage('parking_settings', { dailyRate: 50, totalSpots: 50, currencySymbol: 'Bs.' });
+  const [settings] = useLocalStorage('parking_settings', { dailyRate: 50, totalSpots: 50, currencySymbol: 'Bs.', parkingName: 'San Jose Parking' });
   const { toast } = useToast();
 
   const currentlyParkedCount = useMemo(() => {
@@ -111,7 +115,7 @@ const OperatorEntryLogPage = () => {
     
     setErrors({});
 
-    const entryTime = new Date();
+    const entryTimeISO = getCurrentUTCISOString(); // Changed to UTC
     const newVehicleEntry = {
       id: `vehicle-${Date.now()}-${plate.toUpperCase()}`,
       plate: plate.toUpperCase(),
@@ -119,8 +123,10 @@ const OperatorEntryLogPage = () => {
       vehicleType,
       driverPhone: driverPhone.trim() || null,
       description: description.trim() || null,
-      entryTime: entryTime.toISOString(),
+      entryTime: entryTimeISO,
       status: 'parked',
+      entryOperatorId: user?.id,
+      entryOperatorName: user?.name || user?.username || 'Sistema',
     };
 
     setParkedTrailers([...parkedTrailers, newVehicleEntry]);
@@ -128,8 +134,10 @@ const OperatorEntryLogPage = () => {
 
     toast({
       title: 'Entrada Registrada Exitosamente',
-      description: `Vehículo ${plate.toUpperCase()} (${vehicleType}) de ${country} ingresó a las ${entryTime.toLocaleTimeString('es-ES', { hour: '2-digit', minute: '2-digit' })}.`,
+      description: `Vehículo ${plate.toUpperCase()} (${vehicleType}) de ${country} ingresó a las ${formatDate(entryTimeISO, true)}.`, // formatDate will convert to Chile time for display
     });
+
+    generateEntryTicketPDF(newVehicleEntry, settings);
 
     setPlate('');
     setCountry('');
@@ -248,7 +256,7 @@ const OperatorEntryLogPage = () => {
 
             <CardFooter className="pt-6 px-0">
               <Button type="submit" className="w-full bg-gradient-to-r from-secondary to-green-600 hover:opacity-90 transition-opacity text-base py-3" disabled={availableSpots <= 0}>
-                <CalendarPlus className="w-5 h-5 mr-2" /> {availableSpots <= 0 ? 'Estacionamiento Lleno' : 'Registrar Entrada'}
+                <CalendarPlus className="w-5 h-5 mr-2" /> {availableSpots <= 0 ? 'Estacionamiento Lleno' : 'Registrar Entrada y Generar Ticket'}
               </Button>
             </CardFooter>
           </form>
