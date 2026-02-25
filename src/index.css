@@ -2,111 +2,64 @@
 @tailwind components;
 @tailwind utilities;
 
-@layer base {
-  :root {
-    /* Light Mode (Default) - Light Blue Theme */
-    --background: 0 0% 100%; /* #ffffff */
-    --foreground: 222.2 84% 4.9%; /* #0A0A0A */
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto+Mono:wght@400;700&display=swap');
 
-    --muted: 210 40% 96.1%; /* #f1f5f9 */
-    --muted-foreground: 215.4 16.3% 46.9%; /* #6c757d */
-
-    --popover: 0 0% 100%; /* #ffffff */
-    --popover-foreground: 222.2 84% 4.9%; /* #0A0A0A */
-
-    --card: 0 0% 100%; /* #ffffff */
-    --card-foreground: 222.2 84% 4.9%; /* #0A0A0A */
-
-    --border: 214.3 31.8% 91.4%; /* #e5e7eb */
-    --input: 214.3 31.8% 91.4%; /* #e5e7eb */
-
-    --primary: 195 80% 55%; /* Light Blue: hsl(195, 80%, 55%) approx #33AADD */
-    --primary-foreground: 0 0% 100%; /* White for contrast with light blue */
-
-    --secondary: 160 64% 47%; /* #10B981 (Green, kept for distinction) */
-    --secondary-foreground: 210 40% 98%; /* #fafafa */
-
-    --accent: 38 92% 50%; /* #F59E0B (Orange, kept for accents) */
-    --accent-foreground: 222.2 84% 4.9%; /* #0A0A0A */
-    
-    --destructive: 0 72% 51%; /* #e53e3e (Red, kept for destructive actions) */
-    --destructive-foreground: 210 40% 98%; /* #fafafa */
-
-    --ring: 195 80% 55%; /* Light Blue for focus rings */
-    
-    --radius: 0.5rem;
-  }
-
-  .dark {
-    /* Dark Mode - Adapted Light Blue Theme */
-    --background: 224 71% 4%; /* #060914 */
-    --foreground: 210 40% 98%; /* #fafafa */
-
-    --muted: 223 47% 11%; /* #111827 */
-    --muted-foreground: 215.4 16.3% 56.9%; /* #8892b0 */
-
-    --popover: 224 71% 4%; /* #060914 */
-    --popover-foreground: 210 40% 98%; /* #fafafa */
-
-    --card: 222 47% 11.2%; /* #111827 */
-    --card-foreground: 210 40% 98%; /* #fafafa */
-
-    --border: 217 32.6% 17.5%; /* #202e42 */
-    --input: 217 32.6% 17.5%; /* #202e42 */
-
-    --primary: 195 70% 65%; /* Slightly lighter blue for dark mode: hsl(195, 70%, 65%) approx #66C2E0 */
-    --primary-foreground: 224 71% 4%; /* Dark for contrast on lighter blue */
-
-    --secondary: 160 64% 47%; /* #10B981 */
-    --secondary-foreground: 210 40% 98%; /* #fafafa */
-
-    --accent: 38 92% 50%; /* #F59E0B */
-    --accent-foreground: 222.2 84% 4.9%; /* #0A0A0A */
-    
-    --destructive: 0 72% 51%; /* #e53e3e */
-    --destructive-foreground: 210 40% 98%; /* #fafafa */
-
-    --ring: 195 70% 65%; /* Lighter Blue for focus rings in dark mode */
-  }
+:root {
+  --background: 240 10% 99%;
+  --foreground: 224 71.4% 4.1%;
+  --card: 240 10% 99%;
+  --card-foreground: 224 71.4% 4.1%;
+  --popover: 240 10% 99%;
+  --popover-foreground: 224 71.4% 4.1%;
+  --primary: 220.9 39.3% 11%;
+  --primary-foreground: 210 20% 98%;
+  --secondary: 220 14.3% 95.9%;
+  --secondary-foreground: 220.9 39.3% 11%;
+  --muted: 220 8.9% 43.1%;
+  --muted-foreground: 220 8.9% 43.1%;
+  --accent: 220 14.3% 95.9%;
+  --accent-foreground: 220.9 39.3% 11%;
+  --destructive: 0 84.2% 60.2%;
+  --destructive-foreground: 210 20% 98%;
+  --border: 220 13% 91%;
+  --input: 220 13% 91%;
+  --ring: 220.9 39.3% 11%;
+  --radius: 0.5rem;
 }
 
-@layer base {
-  * {
-    @apply border-border;
-  }
-  body {
-    @apply bg-background text-foreground;
-    @apply min-h-screen flex flex-col;
-    font-feature-settings: "rlig" 1, "calt" 1;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
-  }
-  html, body, #root {
-    height: 100%;
-  }
-  #root > div { 
-    min-height: 100%;
-    display: flex;
-    flex-direction: column;
-  }
+.dark {
+  --background: 224 71.4% 4.1%;
+  --foreground: 210 20% 98%;
+  --card: 224 71.4% 4.1%;
+  --card-foreground: 210 20% 98%;
+  --popover: 224 71.4% 4.1%;
+  --popover-foreground: 210 20% 98%;
+  --primary: 210 20% 98%;
+  --primary-foreground: 220.9 39.3% 11%;
+  --secondary: 215 27.9% 16.9%;
+  --secondary-foreground: 210 20% 98%;
+  --muted: 215 27.9% 16.9%;
+  --muted-foreground: 217.9 10.6% 64.9%;
+  --accent: 215 27.9% 16.9%;
+  --accent-foreground: 210 20% 98%;
+  --destructive: 0 62.8% 30.6%;
+  --destructive-foreground: 210 40% 98%;
+  --border: 215 27.9% 16.9%;
+  --input: 215 27.9% 16.9%;
+  --ring: 216 12.2% 83.9%;
 }
 
-/* Minimalist scrollbar */
-::-webkit-scrollbar {
-  width: 6px;
-  height: 6px;
-}
-::-webkit-scrollbar-track {
-  background: hsl(var(--background));
-}
-::-webkit-scrollbar-thumb {
-  background: hsl(var(--muted-foreground) / 0.3);
-  border-radius: 10px;
-}
-::-webkit-scrollbar-thumb:hover {
-  background: hsl(var(--muted-foreground) / 0.5);
+* {
+  border-color: hsl(var(--border));
 }
 
-main {
-  overflow-y: auto;
+body {
+  background-color: hsl(var(--background));
+  color: hsl(var(--foreground));
+  font-family: 'Inter', sans-serif;
+  min-height: 100vh;
+}
+
+.font-mono {
+  font-family: 'Roboto Mono', monospace;
 }
